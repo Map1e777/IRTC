@@ -1,0 +1,21 @@
+{
+  "name": "IRTC",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git"
+  },
+  "keywords": [],
+  "author": "ZT",
+  "license": "GPL-3.0-or-later",
+  "dependencies": {
+    "@tensorflow/tfjs": "^3.18.0",
+    "express": "^4.17.2",
+    "socket.io": "^4.8.1",
+    "socketio": "^1.0.0"
+  }
+}

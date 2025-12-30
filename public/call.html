@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
+<!--[if gt IE 8]><!-->
+<html class="no-js">
+<!--<![endif]-->
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>基于WebRTC的智能视频通话系统</title>
+  <meta name="description" content="" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+  <meta name="keywords" content="基于WebRTC的智能视频通话系统">
+  <link rel="stylesheet" href="/css/call.css" />
+  <link rel="icon" href="/images/logo.png" type="image/x-icon" />
+  <link rel="manifest" href="/manifest.json" />
+    <script>
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?80c0f79c436304a376c80fb8c7cca52b";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+</head>
+
+<body>
+  <canvas id="canvas"></canvas>
+  <!--[if lt IE 7]>
+      <p class="browsehappy">
+        You are using an <strong>outdated</strong> browser. Please
+        <a href="#">upgrade your browser</a> to improve your experience.
+      </p>
+    <![endif]-->
+  <form>
+    <div class="segment gradientText">
+      <h1>WebRTC</h1>
+      <h2>智能视频通话系统</h2>
+    </div>
+
+    <label>
+      <input id="room" type="text" placeholder="请输入房间号" />
+    </label>
+    <label>
+      <input id="password" type="text" placeholder="请输入房间密码（选填）" />
+    </label>
+    <!-- <label>
+        <input type="password" placeholder="房间人数上限,默认是2" />
+      </label> -->
+    <button class="red" type="button" onclick="{joinRoom()}">
+      <i class="icon ion-md-lock"></i> 进入房间
+    </button>
+  </form>
+
+  <script>
+    function joinRoom() {
+      const room = document.getElementById("room").value;
+      const password = document.getElementById("password").value;
+      if (password) {
+        sessionStorage.setItem("wrtc", password);
+        window.location.href = "/authrtc/" + room;
+      } else {
+        window.location.href = "/rtc/" + room;
+      }
+    }
+  </script>
+  <script src="/js/common.js"></script>
+  <script src="/js/call.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/sw.js");
+      });
+    }
+  </script>
+</body>
+
+</html>

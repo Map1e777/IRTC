@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+    <meta name="keywords" content="基于WebRTC的智能视频通话系统">
+    <title>基于WebRTC的智能视频通话系统</title>
+    <link href="/css/index.css" rel="stylesheet">
+    <link href="/css/snackbar.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/fontawesome/css/free.min.css" />
+    <link rel="stylesheet" href="/fontawesome/css/v4-shims.min.css" />
+    <link rel="stylesheet" href="/fontawesome/css/font-face.min.css" />
+    <link rel="manifest" href="/manifest.json" />
+    </link>
+    <script>
+        var _hmt = _hmt || [];
+        (function () {
+            var hm = document.createElement("script");
+            hm.src = "https://hm.baidu.com/hm.js?80c0f79c436304a376c80fb8c7cca52b";
+            var s = document.getElementsByTagName("script")[0];
+            s.parentNode.insertBefore(hm, s);
+        })();
+    </script>
+</head>
+
+<body>
+    <!-- TODO 摄像头拆分点3-->
+    <!-- 本地视频 -->
+    <div class="moveable" id="local_video_moveable">
+        <video id="local_video" autoplay playsinline muted style="display:block;"></video>
+        <canvas id="local_canvas" style="display: none;"></canvas>
+        <span id="local_video_text">可拖动</span>
+    </div>
+    <!-- 对等端视频 -->
+    <video id="remote_video" autoplay playsinline></video>
+    <div id="remote_video_text">
+        正在等待其他用户加入
+    </div>
+
+    <!-- TODO 视频质量增强拆分点5 -->
+
+    <!-- 控制区 -->
+    <div id="controls_area" class="controls_area">
+        <!-- TODO 一对一视频通话拆分点1 -->
+
+        <!--  TODO 桌面流拆分点3 -->
+
+        <!-- TODO 文字聊天文件传输拆分点1 -->
+
+        <!-- <div class="controls_item" onclick="togglePictureInPicture()">
+            <i class="fas fa-external-link-alt fa-xs"></i>
+            <div id="pip-text" class="icon_text">画中画</div>
+        </div> -->
+        <!-- TODO 视频质量增强拆分点4 -->
+
+        <!-- TODO 虚化背景/背景替换拆分点1 -->
+
+        <!-- TODO 录屏拆分点5 -->
+
+        <!-- TODO 截图拆分点3 -->
+
+
+        <!-- TODO 一对一视频通话拆分点6 -->
+
+    </div>
+    <!-- 聊天区 -->
+    <div id="chat" style="display: none;">
+        <div id="chat-zone">
+        </div>
+        <form class="compose">
+            <input id="chat-input" type="text" placeholder="输入消息" />
+            <i class="fas fa-paper-plane fa-md" onclick="sendMessage()"></i>
+            <i class="fas fa-file-upload fa-md" onclick="clickFileInput()"></i>
+            <i class="fas fa-times fa-md" onclick="toggleChat()"></i>
+            <input id="file_input" type="file" hidden onchange="transFile()" />
+        </form>
+    </div>
+    <!-- 白板区 -->
+    <canvas id="whiteboard" style="display: none;" class="whiteboard" width="600" height="600">
+        抱歉，您的浏览器不支持canvas元素
+    </canvas>
+    <script src="/lib/snackbar.min.js"></script>
+    <script src="/lib/autolink.js"></script>
+    <script src="/js/common.js"></script>
+    <script src="/lib/adapter.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/js/WRTC.js?v=2"></script>
+    <script src="/js/rtc.js?v=2"></script>
+    <!-- <script src="https://unpkg.com/vconsole/dist/vconsole.min.js"></script> -->
+    <!-- <script>
+        var vConsole = new window.VConsole();
+    </script> -->
+    <script>
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("/sw.js");
+            });
+        }
+    </script>
+</body>
+
+</html>
