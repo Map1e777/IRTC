@@ -29,21 +29,35 @@ function logIt(msg) {
 // TODO WebRTC信令服务器拆分点1
 io.on("connection", function (socket) {
   socket.on("join", function (room) {
-    
+    logIt(`A client joined the room ${room}`);
+    const clients = io.sockets.adapter.rooms.get(room);
+    const numClients = typeof clients !== "undefined" ? clients.size : 0;
+    if (numClients === 0) {
+      socket.join(room);
+    } else if (numClients === 1) {
+      socket.join(room);
+      logIt(`room ${room} Broadcasting ready message`);
+      socket.to(room).emit("ready", room);
+    } else {
+      socket.emit("full", room);
+    }
   });
   // TODO WebRTC信令服务器拆分点2
   // Relay candidate messages
   socket.on("icecandidate", function (candidate, room) {
-    
+    logIt(`${room} Received candidate. Broadcasting... ${candidate}`);
+    socket.to(room).emit("icecandidate", candidate);
   });
 
   // TODO WebRTC信令服务器拆分点3
   // Relay offers
   socket.on("offer", function (offer, room) {
+    socket.to(room).emit("offer", offer);
   });
 
   // Relay answers
   socket.on("answer", function (answer, room) {
+    socket.to(room).emit("answer", answer);
   });
 });
 

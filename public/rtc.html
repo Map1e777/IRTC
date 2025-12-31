@@ -44,7 +44,14 @@
     <!-- 控制区 -->
     <div id="controls_area" class="controls_area">
         <!-- TODO 一对一视频通话拆分点1 -->
-
+        <div class="controls_item" onclick="toggleAudio()">
+            <i id="audio_icon" class="fas fa-microphone fa-xs"></i>
+            <div id="audio-text" class="icon_text">麦克风</div>
+        </div>
+        <div class="controls_item" onclick="toggleVideo()">
+            <i id="video_icon" class="fas fa-video fa-xs"></i>
+            <div id="video-text" class="icon_text">摄像头</div>
+        </div>
         <!--  TODO 桌面流拆分点3 -->
 
         <!-- TODO 文字聊天文件传输拆分点1 -->
@@ -63,7 +70,10 @@
 
 
         <!-- TODO 一对一视频通话拆分点6 -->
-
+        <div class="controls_item" onclick="endCall()">
+            <i id="call_icon" class="fas fa-phone-slash fa-xs"></i>
+            <div id="call_text" class="icon_text">结束通话</div>
+        </div>
     </div>
     <!-- 聊天区 -->
     <div id="chat" style="display: none;">

@@ -98,13 +98,30 @@ function rePositionLocalVideo() {
 // 开关音频
 // TODO 一对一视频通话拆分点2
 function toggleAudio() {
- 
+  WRTCEntity.muteMicrophone();
+  const audioIcon = document.getElementById("audio_icon");
+  if (!WRTCEntity.audioEnabled) {
+    audioIcon.classList.remove("fa-microphone");
+    audioIcon.classList.add("fa-microphone-slash");
+  } else {
+    audioIcon.classList.add("fa-microphone");
+    audioIcon.classList.remove("fa-microphone-slash");
+  }
 }
 
 // 开关视频
 // TODO 一对一视频通话拆分点3
 function toggleVideo() {
-  
+  WRTCEntity.pauseVideo();
+  const videoIcon = document.getElementById("video_icon");
+  console.log("videoIcon:", videoIcon);
+  if (!WRTCEntity.videoEnabled) {
+    videoIcon.classList.remove("fa-video");
+    videoIcon.classList.add("fa-video-slash");
+  } else {
+    videoIcon.classList.add("fa-video");
+    videoIcon.classList.remove("fa-video-slash");
+  }
 }
 
 // 开关画中画模式
@@ -147,7 +164,7 @@ function replaceBackground(type) {
 // 结束通话
 //  TODO 一对一视频通话拆分点7
 function endCall() {
-  
+  window.location.href = "/";  
 }
 
 // TODO 文字聊天文件传输拆分点5

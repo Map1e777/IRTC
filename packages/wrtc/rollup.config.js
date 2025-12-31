@@ -8,7 +8,7 @@ export default [
   {
     input: 'src/index.js',
     output: {
-      file: '../../public/js/wRTC.js',
+      file: '../../public/js/WRTC.js',
       format: 'umd',
       name: 'WRTC',
     },

@@ -141,7 +141,18 @@ export default class WRTC {
   // TODO RTCPeerConnection拆分点1
   // 发起呼叫
   invite = () => {
-
+    log('发起呼叫');
+    this.createPeerConnection();
+    try {
+      log('getTracks');
+      this.webcamStream.getTracks().forEach((track) => {
+        log('addTracks');
+        this.RTCPeerConnection.addTrack(track, this.webcamStream);
+      });
+    }
+    catch (err) {
+      error(err);
+    }
   };
 
   //  获取webcam //TODO 摄像头拆分点1
@@ -165,7 +176,24 @@ export default class WRTC {
   // TODO RTCPeerConnection拆分点7
   //  需要协商
   handleNegotiationNeededEvent = async () => {
+    log('开始协商');
+    try {
+      if (
+        this.RTCPeerConnection.signalingState != 'stable' ||
+        this.RTCPeerConnection.connectionState === 'connecting'
+      ) {
+        log('signalingState != stable, 推迟协商');
+        return;
+      }
 
+      log('setLocalDescription(设置本地描述)');
+      await this.RTCPeerConnection.setLocalDescription();
+
+      log('发送offer给对等端');
+      this.socket.emit('offer', this.RTCPeerConnection.localDescription, this.room);
+    } catch (err) {
+      error(err);
+    }
   };
 
   //  连接状态变化
@@ -196,12 +224,18 @@ export default class WRTC {
   // TODO RTCPeerConnection拆分点6
   // 当媒体流添加到track时触发
   handleTrackEvent = (event) => {
-
+    log('Track event: ', event);
+    this.remoteVideo.srcObject = event.streams[0];
+    this.remoteStream = event.streams[0];
+    this.onTrack(event);
   };
   // TODO RTCPeerConnection拆分点5
   //  当收集到ice候选者
   handleICECandidateEvent = (event) => {
-
+    if (event.candidate) {
+      log('发送ICE candidate: ' + event.candidate.candidate);
+      this.socket.emit('icecandidate', event.candidate, this.room);
+    }
   };
 
   //  ice连接状态变更
@@ -227,17 +261,62 @@ export default class WRTC {
   // TODO RTCPeerConnection拆分点2
   //  收到offer
   onOffer = async (offer) => {
+    log('收到offer', offer);
+    
+    // 如果还没有创建RTCPeerConnection，先创建并添加tracks
+    if (!this.RTCPeerConnection) {
+      this.createPeerConnection();
+      try {
+        log('添加tracks到RTCPeerConnection');
+        this.webcamStream.getTracks().forEach((track) => {
+          log('addTrack:', track.kind);
+          this.RTCPeerConnection.addTrack(track, this.webcamStream);
+        });
+      } catch (err) {
+        error(err);
+      }
+    }
 
+    if (this.RTCPeerConnection.signalingState != 'stable') {
+      log(' - 信令状态非stable, 回滚');
+      await Promise.all([
+        this.RTCPeerConnection.setLocalDescription({ type: 'rollback' }),
+        this.RTCPeerConnection.setRemoteDescription(new RTCSessionDescription(offer)),
+      ]);
+      return;
+    } else {
+      log('setRemoteDescription(设置远端描述)');
+      await this.RTCPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    }
+
+    log('创建并发送answer给对等端');
+    await this.RTCPeerConnection.setLocalDescription();
+    log('将缓存的icecandidate addIceCandidate');
+    this.icecandidateArr.forEach((icecandidate) => {
+      console.log('ic:', icecandidate);
+      this.RTCPeerConnection.addIceCandidate(new RTCIceCandidate(icecandidate));
+    });
+    this.socket.emit('answer', this.RTCPeerConnection.localDescription, this.room);
   };
   // TODO RTCPeerConnection拆分点3
   //  收到answer
   onAnswer = async (answer) => {
-
+    log('收到answer' + JSON.stringify(answer));
+    await this.RTCPeerConnection.setRemoteDescription(new RTCSessionDescription(answer)).catch(error);
   };
   // TODO RTCPeerConnection拆分点4
   //  从对等端收到icecandidate
   onIceCandidata = async (icecandidate) => {
-
+    log('从对等端收到icecandidate:' + JSON.stringify(icecandidate));
+    if (!this.RTCPeerConnection) {
+      this.icecandidateArr.push(icecandidate);
+      return;
+    }
+    try {
+      await this.RTCPeerConnection.addIceCandidate(new RTCIceCandidate(icecandidate));
+    } catch (err) {
+      error(err);
+    }
   };
   //TODO RTCDataChannel拆分点4
   //  发送数据
@@ -248,13 +327,28 @@ export default class WRTC {
   //  静音
   // TODO 一对一视频通话拆分点5
   muteMicrophone = () => {
-
+    this.webcamStream.getTracks().forEach((track) => {
+      if (track.kind === 'audio') {
+        track.enabled = !track.enabled;
+        this.audioEnabled = track.enabled;
+        this.onMuteMicrophone(track.enabled);
+      }
+    });
   };
 
   //  关闭是视频流
   // TODO 一对一视频通话拆分点4
   pauseVideo = () => {
-
+    if (this.BackgroundReplacement && this.BackgroundReplacement.state === 'active') {
+      this.replaceBackground('origin');
+    }
+    this.webcamStream.getTracks().forEach((track) => {
+      if (track.kind === 'video') {
+        track.enabled = !track.enabled;
+        this.videoEnabled = track.enabled;
+        this.onPauseVideo(track.enabled);
+      }
+    });
   };
 
   //画中画
