@@ -11,7 +11,7 @@ export default class WRTC {
     // rtc接口实例
     this.RTCPeerConnection = null;
     // 数据通道实例
-    this.DataChanel = null;
+    this.DataChannel = null;
     // 白板实例
     this.WHITEBOARD = null;
     // 背景替换实例
@@ -111,18 +111,62 @@ export default class WRTC {
     //将通用数据通道添加到对等连接，
     //用于文字聊天，字幕和切换发送字幕
     //TODO RTCDataChannel拆分点1
-    this.DataChanel = this.RTCPeerConnection.createDataChannel('chat', {
-
+    this.DataChannel = this.RTCPeerConnection.createDataChannel('chat', {
+      negotiated: true,
+      // both peers must have same id
+      id: 0,
+      ordered: true,
+      maxRetransmits: 30,
     });
     //TODO RTCDataChannel拆分点2
     //成功打开dataChannel时调用
-    this.DataChanel.onopen = (event) => {
-
+    this.DataChannel.onopen = (event) => {
+      log('dataChannel opened');
     };
     //TODO RTCDataChannel拆分点3
     //处理不同的dataChannel类型
-    this.DataChanel.onmessage = (event) => {
+    this.DataChannel.onmessage = (event) => {
+      console.log('event: ', event);
+      if (event.data instanceof Blob || event.data instanceof ArrayBuffer) {
+        console.log('blob');
+        this.receivedBuffer.push(event.data);
+        //更新已经收到的数据的长度
+        this.receivedSize += event.data.byteLength || event.data.size;
+        //如果接收到的字节数与文件大小相同，则创建文件
+        if (this.receivedSize === this.fileSize) {
+          //创建文件
+          const received = new Blob(this.receivedBuffer, { type: 'application/octet-stream' });
+          console.log('received: ', received);
+          // 通过onRecieveFile抛出文件url给用户自行处理
+          this.onRecieveFile({ url: URL.createObjectURL(received), fileName: this.fileName, fileSize: this.fileSize });
+          //将buffer和 size 清空，为下一次传文件做准备
+          this.receivedBuffer = [];
+          this.receivedSize = 0;
+          this.fileSize = 0;
+          this.fileName = '';
+        }
+        return;
+      }
+      try {
+        const receivedData = JSON.parse(event.data);
+        console.log("解析后的JSON：", receivedData);
+        const dataType = receivedData.type;
+        const cleanedMessage = receivedData.data;
+        console.log("消息类型type：", dataType);
+        console.log("消息内容data：", cleanedMessage);
 
+        if (dataType === 'whiteboard') {
+          this.handleRecieveWhiteboard(cleanedMessage);
+        } else if (dataType === 'file') {
+          this.fileName = receivedData.fileName;
+          this.fileSize = receivedData.fileSize;
+        } else {
+          console.log("是普通消息，调用onRecieveMessage");
+          this.onRecieveMessage(cleanedMessage);
+        }
+      } catch (e) {
+        console.error("JSON解析/文本消息处理报错：", e);
+      }
     };
     /* --- 数据传输通道 --- */
 
@@ -132,12 +176,64 @@ export default class WRTC {
 
   //TODO 视频质量增强拆分点2
   VSR(video) {
+    console.log("SR--------SR")
+    tf.tidy(() => {
+      //做一些异步操作
+      let src_img = tf.browser.fromPixels(video);
+      const maxTextureSize = 16384; // WebGL 最大纹理大小
+      const targetHeight = Math.min(src_img.shape[0], maxTextureSize); // 确保图像高度不超过最大值
+      const targetWidth = Math.min(src_img.shape[1], maxTextureSize); // 确保图像宽度不超过最大值
+      let img = tf.image.resizeBilinear(src_img, [targetHeight, targetWidth]);
 
+      // img.dispose()
+      img = tf.cast(img, "float32");
+      const offset = tf.scalar(255);
+      let normalized = img.div(offset); //图像归一化
+      normalized = normalized.mul(offset).clipByValue(0, 255);
+      normalized = tf.transpose(normalized, [2, 0, 1]); // 张量维度变换
+      // const batched = normalized.reshape([3, normalized.shape[1], normalized.shape[2], 1]);
+      const batched = normalized.expandDims(3);
+      let pred = this.model.predict(batched);
+      pred = pred.clipByValue(0, 255);
+      pred = tf.cast(pred, "int32");
+      const output = tf.transpose(
+        pred.reshape([3, pred.shape[1], pred.shape[2]]),
+        [1, 2, 0]
+      ); //维度变换
+      tf.browser.toPixels(output, this.srVideo).then(() => {
+        output.dispose(); //内存中释放tf.Tensor。
+        console.log("Make sure we cleaned up", tf.memory().numTensors);
+      }); // 将张量转为png图片
+      tf.dispose(src_img); // 清除原始图像张量
+      tf.dispose(img); // 清除调整大小后的图像张量
+      tf.dispose(normalized); // 清除归一化后的张量
+      tf.dispose(pred); // 清除归一化后的张量
+      tf.dispose(batched);
+      tf.dispose(output); // 清除归一化后的张量
+    });
   }
   //TODO 视频质量增强拆分点1
   async demo() {
-
-  }
+    if (this.srEnabled) {
+      this.remoteVideo.style.display = "none"
+      this.srVideo.style.display = "block"
+      this.srEnabled = false
+      this.model = await loadGraphModel(this.modelUrl);
+      tf.setBackend("webgl");
+      //this.timer = setInterval(this.VSR(this.remoteVideo), 500);
+      this.timer = setInterval(() => {
+        // 确保调用 VSR 时传递正确的上下文，防止直接执行时丢失上下文
+        this.VSR(this.remoteVideo);
+      }, 500);
+    } else {
+      this.srEnabled = true
+      this.remoteVideo.style.display = "block"
+      this.srVideo.style.display = "none"
+      this.model = null
+      clearInterval(this.timer);
+      this.timer = null
+    }
+  };
   // TODO RTCPeerConnection拆分点1
   // 发起呼叫
   invite = () => {
@@ -155,7 +251,8 @@ export default class WRTC {
     }
   };
 
-  //  获取webcam //TODO 摄像头拆分点1
+  //  获取webcam 
+  //TODO 摄像头拆分点1
   getUserMedia = async () => {
     log('获取媒体流');
     try {
@@ -171,8 +268,18 @@ export default class WRTC {
 
   //  获取桌面流 //TODO 桌面流拆分点1
   getDisplayMedia = async () => {
-
+    log('获取桌面流');
+    try {
+      this.webcamStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      this.localVideo.srcObject = this.webcamStream;
+      this.onGetDisplayMedia();
+      return this.webcamStream;
+    } catch (err) {
+      this.onGetDisplayMediaError();
+      error(err);
+    }
   };
+
   // TODO RTCPeerConnection拆分点7
   //  需要协商
   handleNegotiationNeededEvent = async () => {
@@ -262,7 +369,7 @@ export default class WRTC {
   //  收到offer
   onOffer = async (offer) => {
     log('收到offer', offer);
-    
+
     // 如果还没有创建RTCPeerConnection，先创建并添加tracks
     if (!this.RTCPeerConnection) {
       this.createPeerConnection();
@@ -320,10 +427,22 @@ export default class WRTC {
   };
   //TODO RTCDataChannel拆分点4
   //  发送数据
+  // sendData = (data) => {
+  //   console.log('data: ', data);
+  //   this.DataChannel.send(JSON.stringify(data));
+  // };
   sendData = (data) => {
-
+    console.log("===== WRTC.sendData 被调用 =====");
+    console.log("待发送的原始数据：", data);
+    try {
+      const jsonStr = JSON.stringify(data);
+      console.log("转为JSON字符串：", jsonStr);
+      this.DataChannel.send(jsonStr);
+      console.log("文本消息已通过DataChannel发出");
+    } catch (e) {
+      console.error("sendData报错：", e);
+    }
   };
-
   //  静音
   // TODO 一对一视频通话拆分点5
   muteMicrophone = () => {
@@ -376,14 +495,28 @@ export default class WRTC {
   //   切换发送流
   // TODO 桌面流拆分点6
   switchStream = (stream) => {
-
+    if (!this.RTCPeerConnection) {
+      return;
+    }
+    const videoTrack = stream.getVideoTracks()[0];
+    console.log('videoTrack: ', videoTrack);
+    const sender = this.RTCPeerConnection.getSenders().find(function (s) {
+      return s.track.kind === videoTrack.kind;
+    });
+    sender.replaceTrack(videoTrack);
   };
 
   // 切换流类型
   swap = async () => {
     if (this.mode === 'camera') {
       // TODO 桌面流拆分点2
-
+      try {
+        this.webcamStream = await this.getDisplayMedia();
+        this.mode = 'screen';
+        this.switchStream(this.webcamStream);
+      } catch (err) {
+        log(err);
+      }
     } else {
       //TODO 摄像头拆分点2
       try {
@@ -409,20 +542,32 @@ export default class WRTC {
   // 替换背景 type: 'replace' | 'origin' | 'virtual'
   // TODO 虚化背景/背景替换拆分点4
   replaceBackground(type = 'replace') {
-
-    // const premode = this.BackgroundReplacement.mode;
-    // this.BackgroundReplacement.mode = type;
-    // if (this.BackgroundReplacement.state === 'inactive' && type !== 'origin') {
-    //   this.BackgroundReplacement.restart();
-    //   if(this.RTCPeerConnection && this.RTCPeerConnection.connectionState === 'connected' ){
-    //     this.switchStream(this.BackgroundReplacement.stream);
-    //   }
-    // } else if ((type === premode || type === 'origin') && this.BackgroundReplacement.state === 'active') {
-    //   this.BackgroundReplacement.stop();
-    //   if(this.RTCPeerConnection && this.RTCPeerConnection.connectionState === 'connected' ){
-    //     this.switchStream(this.webcamStream);
-    //   }
-    // }
+    if (!this.BackgroundReplacement) {
+      this.BackgroundReplacement = new BackgroundReplacement({
+        localVideo: this.localVideo,
+        webcamStream: this.webcamStream,
+        maskImg: this.maskImg,
+        backgroundCanvasId: this.backgroundCanvasId,
+        mode: type
+      });
+      if (this.RTCPeerConnection && this.RTCPeerConnection.connectionState === 'connected') {
+        this.switchStream(this.BackgroundReplacement.stream);
+      }
+      return;
+    }
+    const premode = this.BackgroundReplacement.mode;
+    this.BackgroundReplacement.mode = type;
+    if (this.BackgroundReplacement.state === 'inactive' && type !== 'origin') {
+      this.BackgroundReplacement.restart();
+      if (this.RTCPeerConnection && this.RTCPeerConnection.connectionState === 'connected') {
+        this.switchStream(this.BackgroundReplacement.stream);
+      }
+    } else if ((type === premode || type === 'origin') && this.BackgroundReplacement.state === 'active') {
+      this.BackgroundReplacement.stop();
+      if (this.RTCPeerConnection && this.RTCPeerConnection.connectionState === 'connected') {
+        this.switchStream(this.webcamStream);
+      }
+    }
   }
 
   sendFile = (file) => {
@@ -433,7 +578,7 @@ export default class WRTC {
     fileReader.onload = (e) => {
       console.log('e: ', e);
       //当数据被加载时触发该事件
-      this.DataChanel.send(e.target.result);
+      this.DataChannel.send(e.target.result);
       offset += e.target.result.byteLength; //更改已读数据的偏移量
       if (offset < file.size) {
         //如果文件没有被读完
@@ -452,19 +597,39 @@ export default class WRTC {
   // 截图 
   // TODO 截图拆分点1
   screenshot = () => {
-
+    if (!this.RTCPeerConnection) {
+      return;
+    }
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = this.remoteVideo.videoWidth;
+    tmpCanvas.height = this.remoteVideo.videoHeight;
+    const tmpCanvas2D = tmpCanvas.getContext('2d');
+    tmpCanvas2D.drawImage(this.remoteVideo, 0, 0);
+    return tmpCanvas.toDataURL();
   };
 
   // 录制 
   // TODO 录屏拆分点1
   record = (timeSlice) => {
-
+    if (!this.remoteStream) {
+      return;
+    }
+    this.Recorder = new Recorder({
+      stream: this.remoteStream,
+    });
+    this.Recorder.start(timeSlice);
   };
 
   // 停止录制 
   // TODO 录屏拆分点2
   stopRecord = () => {
-
+    const blob = this.Recorder.stop();
+    //生成下载地址
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.href = URL.createObjectURL(blob);
+    downloadAnchor.download = '录制文件';
+    downloadAnchor.click();
+    this.Recorder = null;
   };
 }
 // 触发静音事件时触发

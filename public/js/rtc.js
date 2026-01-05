@@ -5,11 +5,11 @@ webrtc 以外的部分需自行实现
 const webSocket = io();
 // 聊天区
 // TODO 文字聊天文件传输拆分点2
-
+const entireChat = document.getElementById("chat");
 // // 聊天消息输入框
 const chatInput = document.getElementById("chat-input");
 // 消息区
-// const chatZone = document.getElementById("chat-zone");
+const chatZone = document.getElementById("chat-zone");
 // 可移动的元素
 const moveableEles = document.getElementsByClassName("moveable");
 // 远端视频
@@ -25,16 +25,16 @@ const controlsArea = document.getElementById("controls_area");
 
 // TODO 虚化背景/背景替换拆分点2
 // 背景图片
-
+const maskImg = document.getElementById("maskImg");
 
 // TODO 文字聊天文件传输拆分点3
 // 文件传输input
-
+const fileInput = document.getElementById("file_input");
 // TODO 录屏拆分点6
 // 录制文字
-
+const recordText = document.getElementById("record_text");
 // TODO 桌面流拆分点5
-
+const shareScreenText = document.getElementById("swap_text");
 
 // 处理url判断是否需要密码
 const url = window.location.href;
@@ -82,16 +82,14 @@ function rePositionLocalVideo() {
   //获取远程视频的位置
   const bounds = remoteVideo.getBoundingClientRect();
   if (isMobile()) {
-    localVideoMoveable.style.top = `${
-      bounds.top - localVideoMoveable.clientHeight
-    }px`;
+    localVideoMoveable.style.top = `${bounds.top - localVideoMoveable.clientHeight
+      }px`;
     localVideoMoveable.style.left = `${bounds.left}px`;
   } else {
     //设置本地视频的位置
     localVideoMoveable.style.top = `${bounds.top}px`;
-    localVideoMoveable.style.left = `${
-      bounds.left - localVideoMoveable.clientWidth
-    }px`;
+    localVideoMoveable.style.left = `${bounds.left - localVideoMoveable.clientWidth
+      }px`;
   }
 }
 
@@ -138,39 +136,71 @@ function togglePictureInPicture() {
 // 开关屏幕共享模式
 // TODO 桌面流拆分点4
 function toggleScreen() {
-  
+  shareScreenText.textContent = "屏幕共享";
+  WRTCEntity.swap();
 }
 //TODO 视频质量增强拆分点3
-function toggleSR() {
- 
 
-  // if (WRTCEntity.WHITEBOARD) {
-  //   WRTCEntity.WHITEBOARD.toggleWhiteboard();
-  // } else {
-  //   alert("您必须建立会话之后才能开启白板功能");
-  // }
+function toggleSR() {
+  const videoIcon = document.getElementById("video_icon2");
+  WRTCEntity.demo();
+  console.log(WRTCEntity.srEnabled);
+  if (!WRTCEntity.srEnabled) {
+    videoIcon.classList.remove("fa-video");
+    videoIcon.classList.add("fa-video-slash");
+  } else {
+    videoIcon.classList.remove("fa-video-slash");
+    videoIcon.classList.add("fa-video");
+  }
 }
+// function toggleSR() {
+
+
+//   // if (WRTCEntity.WHITEBOARD) {
+//   //   WRTCEntity.WHITEBOARD.toggleWhiteboard();
+//   // } else {
+//   //   alert("您必须建立会话之后才能开启白板功能");
+//   // }
+// }
 // TODO 文字聊天文件传输拆分点4
 // 开关聊天功能
 function toggleChat() {
-  
+  const chatIcon = document.getElementById("chat_icon");
+  if (entireChat.style.display !== "none") {
+    fadeOut(entireChat);
+    chatIcon.classList.remove("fa-comment-slash");
+    chatIcon.classList.add("fa-comment");
+  } else {
+    fadeIn(entireChat);
+    chatIcon.classList.remove("fa-comment");
+    chatIcon.classList.add("fa-comment-slash");
+  }
 }
 
 // TODO 虚化背景/背景替换拆分点3
 function replaceBackground(type) {
-  
+  if (suggestPCChrome()) return;
+  Snackbar.show({
+    text: "正在处理，请稍候",
+    pos: "top-left",
+    duration: 8000,
+    customClass: "custom_snackbar",
+    actionText: "知道了",
+    actionTextColor: "#f66496",
+  });
+  WRTCEntity.replaceBackground(type);
 }
 
 // 结束通话
 //  TODO 一对一视频通话拆分点7
 function endCall() {
-  window.location.href = "/";  
+  window.location.href = "/";
 }
 
 // TODO 文字聊天文件传输拆分点5
 //将信息添加到页面上的聊天屏幕
 function addMessageToScreen(msg, isOwnMessage) {
-  if (!WRTCEntity.DataChanel) {
+  if (!WRTCEntity.DataChannel) {
     alert("请先建立会话后再发送消息");
     return;
   }
@@ -188,12 +218,52 @@ function addMessageToScreen(msg, isOwnMessage) {
 }
 // TODO 文字聊天文件传输拆分点6
 function sendMessage() {
-  
+  console.log("===== 开始发送文本消息 =====");
+  if (!WRTCEntity.DataChannel || WRTCEntity.DataChannel.readyState !== 'open') {
+    console.error("DataChannel未就绪：", WRTCEntity.DataChannel?.readyState);
+    return;
+  }
+
+  let msg = chatInput.value.trim();
+  console.log("原始输入消息：", msg);
+  if (!msg) {
+    console.log("消息为空，跳过发送");
+    return;
+  }
+
+  // 转义+自动链接（重点：检查autolink是否存在）
+  try {
+    msg = msg.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    console.log("转义后消息：", msg);
+    // 若autolink未定义，注释这行先测试
+    // msg = msg.autolink(); 
+    // console.log("autolink后消息：", msg);
+  } catch (e) {
+    console.error("消息处理报错（大概率autolink未定义）：", e);
+    return;
+  }
+
+  // 构造发送数据（核心：type必须是"msg"）
+  const sendData = { type: "msg", data: msg };
+  console.log("准备发送的JSON数据：", sendData);
+
+  // 调用sendData发送
+  WRTCEntity.sendData(sendData);
+  console.log("已调用sendData发送");
+
+  // 本地显示消息（先确认本地能显示）
+  addMessageToScreen(msg, true);
+  chatZone.scrollTop = chatZone.scrollHeight;
+  chatInput.value = "";
+  console.log("===== 本地消息显示完成 =====");
 }
 // TODO 文字聊天文件传输拆分点7
 // 监听输入框 键盘 enter
-chatInput.addEventListener("keypress", function (event) {
-  
+chatInput.addEventListener("keydown", function (event) {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    sendMessage();
+  }
 });
 
 //当套接字接收到房间已满的消息时调用
@@ -207,16 +277,50 @@ function chatRoomFull() {
 }
 // TODO 文字聊天文件传输拆分点9
 function clickFileInput() {
-  
+  fileInput.click();
 }
 
 // TODO 文字聊天文件传输拆分点8
 function transFile() {
-  
+  if (!WRTCEntity.DataChannel) {
+    Snackbar.show({
+      text: "必须先建立通话才能发送消息",
+      pos: "top-right",
+      duration: 3000,
+      customClass: "custom_snackbar",
+      actionText: "知道了",
+      actionTextColor: "#f66496",
+    });
+    return;
+  }
+  const file = fileInput.files[0];
+  console.log("file: ", file);
+  WRTCEntity.sendFile(file);
+  const fileUrl = URL.createObjectURL(file);
+  const msg = `<a href=${fileUrl} download=${file.name} >${file.name}</a>`;
+  addMessageToScreen(msg, true);
 }
 // TODO 录屏拆分点4
 function record() {
-
+  if (!WRTCEntity.RTCPeerConnection) {
+    alert("必须先建立通话才能录制远端视频");
+    return;
+  }
+  if (!WRTCEntity.Recorder) {
+    WRTCEntity.record(1000);
+    recordText.textContent = "停止";
+    Snackbar.show({
+      text: "开始录制",
+      pos: "top-center",
+      duration: 2000,
+      customClass: "custom_snackbar",
+      actionText: "好的",
+      actionTextColor: "#f66496",
+    });
+  } else {
+    WRTCEntity.stopRecord();
+    recordText.textContent = "录制";
+  }
 }
 // 展示背景图片
 function showBackground() {
@@ -243,7 +347,16 @@ function showFps() {
 
 // TODO 截图拆分点2
 function screenshot() {
-  
+  if (!WRTCEntity.RTCPeerConnection) {
+    alert("必须先建立通话才能截图");
+    return;
+  }
+  const imgUrl = WRTCEntity.screenshot();
+  console.log("imgUrl: ", imgUrl);
+  const anchor = document.createElement('a');
+  anchor.download = "截图";
+  anchor.href = imgUrl;
+  anchor.click();
 }
 
 // 启动程序
@@ -287,7 +400,7 @@ async function bootstrap() {
 
   const videoConstraint = isMobile()
     ? { width: 480, height: 480 }
-    : { width: 1280, height: 720 };
+    : { width: 320, height: 180 };
   // 新建WRTC实例  封装了WebRTC联通过程
   window.WRTCEntity = new WRTC({
     socket: webSocket,
